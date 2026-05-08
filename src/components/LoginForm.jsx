@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import API from "../api/api";
 
-export default function LoginForm({ onSwitchTab, form, setForm, loading, setLoading, setMessage }) {
+export default function LoginForm({ onSwitchTab, form, setForm, loading, setLoading, setMessage, navigate }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
@@ -54,9 +54,10 @@ export default function LoginForm({ onSwitchTab, form, setForm, loading, setLoad
 
       setMessage({ type: "success", text: "Login successful! Redirecting..." });
       
+      // Use navigate for React Router redirect
       setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 1500);
+        navigate("/dashboard");
+      }, 500);
 
     } catch (err) {
       console.log("========== LOGIN ERROR ==========");
