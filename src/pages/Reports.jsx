@@ -18,7 +18,8 @@ export default function Reports() {
   const [workers, setWorkers] = useState([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const [shouldGenerate, setShouldGenerate] = useState(false); // NEW: Control report generation
+  const [shouldGenerate, setShouldGenerate] = useState(false);
+  const [pdfOrientation, setPdfOrientation] = useState("portrait");
   
   // Filter states
   const [filterStatus, setFilterStatus] = useState("all");
@@ -311,8 +312,8 @@ export default function Reports() {
       alert("Please select a report type first");
       return;
     }
-    setReportData(null); // Clear previous data
-    setShouldGenerate(true); // Trigger generation
+    setReportData(null);
+    setShouldGenerate(true);
   };
 
   const handleBackToSelection = () => {
@@ -334,44 +335,62 @@ export default function Reports() {
     setDownloadProgress(10);
     
     try {
+      const originalWidth = element.scrollWidth;
+      const originalHeight = element.scrollHeight;
+      
       setDownloadProgress(20);
+      
+      const isLandscape = pdfOrientation === "landscape";
+      const pdfWidth = isLandscape ? 297 : 210;
+      const pdfHeight = isLandscape ? 210 : 297;
+      
+      const scale = (pdfWidth - 20) / originalWidth;
+      const contentHeight = originalHeight * scale;
+      
+      setDownloadProgress(30);
+      
       const canvas = await html2canvas(element, {
-        scale: 2,
+        scale: 3,
         backgroundColor: '#ffffff',
         logging: false,
         useCORS: true,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
+        windowWidth: originalWidth,
+        windowHeight: originalHeight,
+        onclone: (clonedDoc, element) => {
+          element.style.overflow = 'visible';
+        }
       });
       
-      setDownloadProgress(50);
+      setDownloadProgress(60);
       const imgData = canvas.toDataURL('image/png');
       
       setDownloadProgress(70);
+      
       const pdf = new jsPDF({
-        orientation: 'portrait',
+        orientation: pdfOrientation,
         unit: 'mm',
         format: 'a4',
         compress: true,
         hotfixes: ['px_scaling']
       });
       
-      const imgWidth = 190;
+      const imgWidth = pdfWidth - 20;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      const pageHeight = 277;
-      let heightLeft = imgHeight;
-      let position = 0;
       
-      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight, undefined, 'FAST');
+      let position = 0;
+      let pageHeight = pdfHeight - 20;
+      let heightLeft = imgHeight;
+      
+      pdf.addImage(imgData, 'PNG', 10, position + 10, imgWidth, imgHeight, undefined, 'FAST');
       heightLeft -= pageHeight;
       
-      let pageCount = 1;
+      let pageNum = 1;
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
+        position = position - pageHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight, undefined, 'FAST');
+        pdf.addImage(imgData, 'PNG', 10, position + 10, imgWidth, imgHeight, undefined, 'FAST');
         heightLeft -= pageHeight;
-        pageCount++;
+        pageNum++;
       }
       
       setDownloadProgress(90);
@@ -389,6 +408,97 @@ export default function Reports() {
       setDownloading(false);
       setDownloadProgress(0);
     }
+  };
+
+  const handlePrint = () => {
+    const element = document.getElementById('report-content');
+    if (!element) return;
+    
+    const originalOverflow = document.body.style.overflow;
+    const originalPadding = document.body.style.padding;
+    
+    document.body.style.overflow = 'auto';
+    document.body.style.padding = '0';
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Please allow popups to print");
+      return;
+    }
+    
+    const content = element.cloneNode(true);
+    
+    const styles = `
+      <style>
+        @media print {
+          body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+          }
+          table {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .print-page-break {
+            page-break-before: always;
+            break-before: page;
+          }
+          * {
+            overflow: visible !important;
+          }
+          .table-container {
+            overflow: visible !important;
+          }
+        }
+        @page {
+          size: ${pdfOrientation === "landscape" ? "landscape" : "portrait"};
+          margin: 15mm;
+        }
+        body {
+          margin: 0;
+          padding: 20px;
+          font-family: Arial, sans-serif;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        th, td {
+          border: 1px solid #ddd;
+          padding: 8px;
+          text-align: left;
+        }
+      </style>
+    `;
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${getTitle()}</title>
+        ${styles}
+      </head>
+      <body>
+        ${content.outerHTML}
+      </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    
+    printWindow.onload = () => {
+      printWindow.print();
+      printWindow.onafterprint = () => {
+        printWindow.close();
+        document.body.style.overflow = originalOverflow;
+        document.body.style.padding = originalPadding;
+      };
+    };
   };
 
   const getFilterText = () => {
@@ -663,23 +773,51 @@ export default function Reports() {
                 <h2 className="text-sm font-semibold text-gray-700">{getTitle()}</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Last updated: {new Date().toLocaleTimeString('en-IN')}</p>
               </div>
-              <button
-                onClick={downloadPDF}
-                disabled={downloading}
-                className="bg-green-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-green-700 transition flex items-center gap-1 disabled:opacity-50"
-              >
-                {downloading ? (
-                  <>
-                    <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {downloadProgress}%
-                  </>
-                ) : (
-                  "📥 Download PDF"
-                )}
-              </button>
+              <div className="flex gap-2">
+                {/* Orientation Selector */}
+                <select
+                  value={pdfOrientation}
+                  onChange={(e) => setPdfOrientation(e.target.value)}
+                  className="bg-gray-100 border border-gray-300 rounded-md px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200 transition"
+                  disabled={downloading}
+                >
+                  <option value="portrait">Portrait</option>
+                  <option value="landscape">Landscape</option>
+                </select>
+                
+                {/* Print Button */}
+                <button
+                  onClick={handlePrint}
+                  disabled={downloading}
+                  className="bg-gray-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-gray-700 transition flex items-center gap-1 disabled:opacity-50"
+                >
+                  🖨️ Print
+                </button>
+                
+                {/* Download PDF Button */}
+                <button
+                  onClick={downloadPDF}
+                  disabled={downloading}
+                  className="bg-green-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-green-700 transition flex items-center gap-1 disabled:opacity-50"
+                >
+                  {downloading ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {downloadProgress}%
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      PDF
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
             
             {/* Download Progress Bar */}
