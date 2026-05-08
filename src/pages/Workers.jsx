@@ -447,8 +447,9 @@ export default function Workers() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6 w-full ">
+      {/* <div className="max-w-7xl mx-auto"> */}
+      <div className="w-full">
         <ProgressModal show={showProgress} progress={uploadProgress} />
         <PhotoModal 
           show={showPhotoModal} 

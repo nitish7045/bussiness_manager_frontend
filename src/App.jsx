@@ -1,6 +1,6 @@
 // src/App.jsx
 import { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom"; // Remove BrowserRouter
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import Workers from "./pages/Workers";
@@ -21,7 +21,6 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   
   const location = useLocation();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const checkAuth = () => {
@@ -35,12 +34,18 @@ function App() {
     return () => window.removeEventListener("storage", checkAuth);
   }, []);
 
-  // Redirect to login if not authenticated and not on billing login
+  // Handle sidebar collapse state from localStorage
   useEffect(() => {
-    if (!isLoading && !isLoggedIn && location.pathname !== "/billing/login") {
-      navigate("/login");
+    const savedState = localStorage.getItem("sidebarCollapsed");
+    if (savedState !== null) {
+      setIsSidebarCollapsed(savedState === "true");
     }
-  }, [isLoading, isLoggedIn, location, navigate]);
+  }, []);
+
+  const handleSidebarCollapse = (collapsed) => {
+    setIsSidebarCollapsed(collapsed);
+    localStorage.setItem("sidebarCollapsed", collapsed);
+  };
 
   if (isLoading) {
     return (
@@ -62,35 +67,38 @@ function App() {
   }
 
   return (
-    <div className="flex">
+    <div className="flex min-h-screen">
       <Sidebar 
         setPage={setCurrentPage} 
-        onCollapse={setIsSidebarCollapsed}
+        onCollapse={handleSidebarCollapse}
         isCollapsed={isSidebarCollapsed}
       />
       <main 
-        className="flex-1 overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100"
+        className="flex-1 overflow-x-auto bg-gradient-to-br from-gray-50 to-gray-100"
         style={{ 
-          marginLeft: isSidebarCollapsed ? "64px" : "256px",
+          marginLeft: 0,
+          width: isSidebarCollapsed ? "calc(100% - 64px)" : "calc(100% - 256px)",
           minHeight: "100vh",
-          transition: "margin-left 0.3s ease"
+          transition: "all 0.3s ease"
         }}
       >
-        <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/workers" element={<Workers />} />
-          <Route path="/attendance" element={<Attendance />} />
-          <Route path="/advance" element={<AdvanceManagement />} />
-          <Route path="/salary" element={<SalaryManagement />} />
-          <Route path="/companysetting" element={<CompanySettings />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/" element={<Navigate to="/dashboard" />} />
-          <Route path="/billing/dashboard" element={
-            <BillingProtectedRoute>
-              <BillingDashboard />
-            </BillingProtectedRoute>
-          } />
-        </Routes>
+        <div className="w-full">
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/workers" element={<Workers />} />
+            <Route path="/attendance" element={<Attendance />} />
+            <Route path="/advance" element={<AdvanceManagement />} />
+            <Route path="/salary" element={<SalaryManagement />} />
+            <Route path="/companysetting" element={<CompanySettings />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="/billing/dashboard" element={
+              <BillingProtectedRoute>
+                <BillingDashboard />
+              </BillingProtectedRoute>
+            } />
+          </Routes>
+        </div>
       </main>
     </div>
   );

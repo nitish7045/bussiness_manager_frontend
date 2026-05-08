@@ -10,7 +10,7 @@ import WorkerReport from "../components/reports/WorkerReport";
 
 export default function Reports() {
   const [loading, setLoading] = useState(false);
-  const [reportType, setReportType] = useState(null); // Changed from "salary" to null
+  const [reportType, setReportType] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [reportData, setReportData] = useState(null);
@@ -18,6 +18,7 @@ export default function Reports() {
   const [workers, setWorkers] = useState([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [shouldGenerate, setShouldGenerate] = useState(false); // NEW: Control report generation
   
   // Filter states
   const [filterStatus, setFilterStatus] = useState("all");
@@ -25,11 +26,11 @@ export default function Reports() {
   const [filterType, setFilterType] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(true);
-
-  // Debounced search to prevent too many API calls
+  
+  // Debounced search
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
 
-  // Report type options for cards
+  // Report type options
   const reportOptions = [
     {
       id: "salary",
@@ -85,12 +86,13 @@ export default function Reports() {
     fetchWorkers();
   }, []);
 
-  // Auto-generate report when filters change only if report type is selected
+  // Generate report only when shouldGenerate is true
   useEffect(() => {
-    if (reportType && workers.length > 0) {
+    if (reportType && workers.length > 0 && shouldGenerate) {
       generateReport();
+      setShouldGenerate(false);
     }
-  }, [reportType, selectedMonth, selectedYear, filterStatus, filterWorker, filterType, debouncedSearchTerm, workers]);
+  }, [reportType, selectedMonth, selectedYear, filterStatus, filterWorker, filterType, debouncedSearchTerm, workers, shouldGenerate]);
 
   const fetchCompanyDetails = async () => {
     try {
@@ -112,6 +114,7 @@ export default function Reports() {
 
   const fetchSalaryReport = useCallback(async () => {
     setLoading(true);
+    setReportData(null);
     try {
       const res = await API.get(`/salary/monthly?month=${selectedMonth}&year=${selectedYear}`);
       let data = res.data;
@@ -146,6 +149,7 @@ export default function Reports() {
 
   const fetchAdvanceReport = useCallback(async () => {
     setLoading(true);
+    setReportData(null);
     try {
       let results = [];
       let workersToProcess = workers;
@@ -191,6 +195,7 @@ export default function Reports() {
 
   const fetchAttendanceReport = useCallback(async () => {
     setLoading(true);
+    setReportData(null);
     try {
       const results = [];
       let workersToProcess = workers;
@@ -206,25 +211,19 @@ export default function Reports() {
       }
       
       for (const worker of workersToProcess) {
+        const res = await API.get(
+          `/attendance?workerId=${worker._id}&month=${selectedMonth}&year=${selectedYear}`
+        );
+        const attendanceData = res.data.data || res.data || [];
+        const finalAttendance = Array.isArray(attendanceData) ? attendanceData : [];
 
-  const res = await API.get(
-    `/attendance?workerId=${worker._id}&month=${selectedMonth}&year=${selectedYear}`
-  );
-
-  const attendanceData = res.data.data || res.data || [];
-
-  const finalAttendance = Array.isArray(attendanceData)
-    ? attendanceData
-    : [];
-
-  // Only show workers having attendance
-  if (finalAttendance.length > 0) {
-    results.push({
-      worker: worker,
-      attendance: finalAttendance
-    });
-  }
-}
+        if (finalAttendance.length > 0) {
+          results.push({
+            worker: worker,
+            attendance: finalAttendance
+          });
+        }
+      }
       
       setReportData({
         type: "attendance",
@@ -243,6 +242,7 @@ export default function Reports() {
 
   const fetchWorkerReport = useCallback(async () => {
     setLoading(true);
+    setReportData(null);
     try {
       let filteredWorkers = workers;
       
@@ -297,17 +297,33 @@ export default function Reports() {
 
   const handleReportTypeSelect = (type) => {
     setReportType(type);
-    setReportData(null); // Clear previous report data
+    setReportData(null);
+    setShouldGenerate(false);
+    setFilterStatus("all");
+    setFilterWorker("all");
+    setFilterType("all");
+    setSearchTerm("");
+    setDebouncedSearchTerm("");
+  };
+
+  const handleGenerateReport = () => {
+    if (!reportType) {
+      alert("Please select a report type first");
+      return;
+    }
+    setReportData(null); // Clear previous data
+    setShouldGenerate(true); // Trigger generation
   };
 
   const handleBackToSelection = () => {
     setReportType(null);
     setReportData(null);
-    // Reset filters
+    setShouldGenerate(false);
     setFilterStatus("all");
     setFilterWorker("all");
     setFilterType("all");
     setSearchTerm("");
+    setDebouncedSearchTerm("");
   };
 
   const downloadPDF = async () => {
@@ -414,6 +430,7 @@ export default function Reports() {
     setFilterWorker("all");
     setFilterType("all");
     setSearchTerm("");
+    setDebouncedSearchTerm("");
   };
 
   const renderFilterSection = () => {
@@ -513,16 +530,6 @@ export default function Reports() {
             )}
           </div>
         )}
-        
-        {/* Loading Indicator */}
-        {loading && (
-          <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
-            <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
-              <p className="text-xs text-gray-500">Generating report...</p>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -542,7 +549,7 @@ export default function Reports() {
             <h3 className={`text-lg font-bold ${option.textColor} text-center mb-2`}>{option.title}</h3>
             <p className="text-xs text-gray-500 text-center">{option.description}</p>
             <div className={`mt-4 text-center text-xs font-medium ${option.textColor} opacity-75`}>
-              Click to generate →
+              Click to select →
             </div>
           </div>
         ))}
@@ -559,14 +566,15 @@ export default function Reports() {
       case "advance":
         return <AdvanceReport data={reportData.data} filters={reportData.filters} />;
       case "attendance":
-  return (
-    <AttendanceReport
-      data={reportData.data}
-      month={reportData.month}
-      year={reportData.year}
-      filters={reportData.filters}
-    />
-  );case "worker":
+        return (
+          <AttendanceReport
+            data={reportData.data}
+            month={reportData.month}
+            year={reportData.year}
+            isLoading={loading}
+          />
+        );
+      case "worker":
         return <WorkerReport 
           data={reportData.data} 
           totalActive={reportData.totalActive}
@@ -581,11 +589,11 @@ export default function Reports() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800">Reports Dashboard</h1>
-          <p className="text-sm text-gray-500">Select a report type to generate detailed insights</p>
+          <p className="text-sm text-gray-500">Select a report type, set filters, and click Generate to view report</p>
         </div>
 
         {/* Report Type Selection Cards */}
@@ -593,21 +601,59 @@ export default function Reports() {
 
         {/* Report Controls - Only show when report type is selected */}
         {reportType && (
-          <ReportControls
-            reportType={reportType}
-            onReportTypeChange={(type) => {
-              handleReportTypeSelect(type);
-            }}
-            selectedMonth={selectedMonth}
-            onMonthChange={setSelectedMonth}
-            selectedYear={selectedYear}
-            onYearChange={setSelectedYear}
-            loading={loading}
-          />
+          <div className="mb-4">
+            <ReportControls
+              reportType={reportType}
+              onReportTypeChange={(type) => {
+                handleReportTypeSelect(type);
+              }}
+              selectedMonth={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              selectedYear={selectedYear}
+              onYearChange={setSelectedYear}
+              loading={loading}
+            />
+            
+            {/* Generate Button */}
+            <div className="mt-3 flex justify-start">
+              <button
+                onClick={handleGenerateReport}
+                disabled={loading}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-all duration-200 flex items-center gap-2 shadow-md disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Generate Report 
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Filter Section - Only show when report type is selected */}
         {renderFilterSection()}
+
+        {/* Loading Indicator */}
+        {loading && !reportData && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-4">
+            <div className="flex flex-col items-center justify-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p className="text-sm text-gray-500">Generating report... Please wait</p>
+            </div>
+          </div>
+        )}
 
         {/* Report Content */}
         {reportData && (
@@ -714,7 +760,7 @@ export default function Reports() {
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📊</div>
             <h3 className="text-lg font-medium text-gray-700 mb-2">Choose a Report Type</h3>
-            <p className="text-sm text-gray-500">Click on any card above to generate a detailed report</p>
+            <p className="text-sm text-gray-500">Click on any card above to select a report type, then click Generate Report</p>
           </div>
         )}
       </div>

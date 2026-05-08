@@ -1,6 +1,6 @@
 // src/components/reports/AttendanceReport.jsx
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -13,6 +13,36 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FULL_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// ─────────────────────────────────────────────────────────────
+// SKELETON LOADING COMPONENTS
+// ─────────────────────────────────────────────────────────────
+
+const SkeletonCard = () => (
+  <div className="animate-pulse">
+    <div className="bg-gray-200 rounded-lg p-4">
+      <div className="h-3 bg-gray-300 rounded w-12 mx-auto mb-2"></div>
+      <div className="h-6 bg-gray-300 rounded w-16 mx-auto"></div>
+    </div>
+  </div>
+);
+
+const SkeletonMatrix = () => (
+  <div className="animate-pulse">
+    <div className="bg-gray-100 rounded-lg overflow-hidden">
+      <div className="h-8 bg-gray-200 w-full mb-2"></div>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="flex gap-1 mb-1">
+          <div className="h-12 bg-gray-200 rounded w-24"></div>
+          {[1, 2, 3, 4, 5, 6, 7].map((j) => (
+            <div key={j} className="h-12 bg-gray-200 rounded flex-1"></div>
+          ))}
+          <div className="h-12 bg-gray-200 rounded w-28"></div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 // ─────────────────────────────────────────────────────────────
 // HELPERS
@@ -34,11 +64,6 @@ function getStatusText(status, ot) {
   return "-";
 }
 
-// Calculate totals with correct formulas
-// Present = ALL present (including Sunday)
-// Holiday = ALL holiday EXCLUDING Sundays
-// PresentOnSunday = present on Sunday + holiday on Sunday (ONLY SUNDAYS)
-// TotalPresent = Present + PresentOnSunday + Holiday
 function calculateAdvancedTotals(attendance = []) {
   let presentCount = 0;
   let halfdayCount = 0;
@@ -67,11 +92,9 @@ function calculateAdvancedTotals(attendance = []) {
         absentCount++;
         break;
       case 'holiday':
-        // Holiday: ONLY count if NOT on Sunday
         if (!isSunday) {
           holidayCount++;
         }
-        // Count in PresentOnSunday ONLY if on Sunday
         if (isSunday) {
           presentOnSundayCount++;
         }
@@ -93,14 +116,14 @@ function calculateAdvancedTotals(attendance = []) {
 }
 
 function statusStyle(status, ot) {
-  if (!status) return S.statusNone;
-  if (status === "present" && ot > 0) return S.statusPOT;
-  if (status === "present") return S.statusP;
-  if (status === "halfday") return S.statusH;
-  if (status === "holiday") return S.statusL;
-  if (status === "absent" && ot > 0) return S.statusAOT;
-  if (status === "absent") return S.statusA;
-  return S.statusNone;
+  if (!status) return {};
+  if (status === "present" && ot > 0) return { background: "#ede9fe", color: "#6d28d9", fontWeight: 700 };
+  if (status === "present") return { background: "#dcfce7", color: "#15803d", fontWeight: 700 };
+  if (status === "halfday") return { background: "#fef3c7", color: "#b45309", fontWeight: 700 };
+  if (status === "holiday") return { background: "#dbeafe", color: "#1d4ed8", fontWeight: 700 };
+  if (status === "absent" && ot > 0) return { background: "#fecaca", color: "#991b1b", fontWeight: 700 };
+  if (status === "absent") return { background: "#fee2e2", color: "#b91c1c", fontWeight: 700 };
+  return {};
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -195,11 +218,11 @@ const S = {
     borderRadius: 3,
   },
 
-  tableWrap: {
+  tableContainer: {
     width: "100%",
+    overflowX: "auto",
     borderRadius: 8,
     border: "1px solid #e5e7eb",
-    overflow: "auto",
   },
 
   table: {
@@ -207,7 +230,7 @@ const S = {
     width: "100%",
     tableLayout: "auto",
     fontSize: 10,
-    minWidth: 800,
+    minWidth: "100%",
   },
 
   th: {
@@ -252,6 +275,7 @@ const S = {
     position: "sticky",
     left: 0,
     zIndex: 10,
+    backgroundColor: "#f9fafb",
   },
 
   thSummary: {
@@ -266,6 +290,7 @@ const S = {
     position: "sticky",
     right: 0,
     zIndex: 10,
+    backgroundColor: "#f9fafb",
   },
 
   tdWorker: {
@@ -315,14 +340,6 @@ const S = {
     fontWeight: 600,
   },
 
-  statusP: { background: "#dcfce7", color: "#15803d", fontWeight: 700 },
-  statusPOT: { background: "#ede9fe", color: "#6d28d9", fontWeight: 700 },
-  statusH: { background: "#fef3c7", color: "#b45309", fontWeight: 700 },
-  statusA: { background: "#fee2e2", color: "#b91c1c", fontWeight: 700 },
-  statusAOT: { background: "#fecaca", color: "#991b1b", fontWeight: 700 },
-  statusL: { background: "#dbeafe", color: "#1d4ed8", fontWeight: 700 },
-  statusNone: { color: "#d1d5db" },
-
   summaryTable: {
     borderCollapse: "collapse",
     width: "100%",
@@ -357,18 +374,23 @@ const S = {
 // COMPONENT
 // ─────────────────────────────────────────────────────────────
 
-export default function AttendanceReport({ data = [], month, year }) {
+export default function AttendanceReport({ data = [], month, year, isLoading = false }) {
   const [viewMode, setViewMode] = useState("matrix");
   const [searchTerm, setSearchTerm] = useState("");
 
   const reportMonth = month || new Date().getMonth() + 1;
   const reportYear = year || new Date().getFullYear();
 
+  useEffect(() => {
+    setSearchTerm("");
+  }, [reportMonth, reportYear]);
+
   const dates = useMemo(() => {
     return getDatesInMonth(reportYear, reportMonth);
   }, [reportMonth, reportYear]);
 
   const filteredData = useMemo(() => {
+    if (!data || data.length === 0) return [];
     return data.filter((worker) => {
       return worker.worker.name
         .toLowerCase()
@@ -376,8 +398,20 @@ export default function AttendanceReport({ data = [], month, year }) {
     });
   }, [data, searchTerm]);
 
-  // Calculate all totals with advanced formula (using only one source of truth)
   const allTotals = useMemo(() => {
+    if (!data || data.length === 0) {
+      return {
+        workers: 0,
+        present: 0,
+        halfday: 0,
+        absent: 0,
+        holiday: 0,
+        presentOnSunday: 0,
+        totalPresent: 0,
+        overtime: 0,
+      };
+    }
+
     let totals = {
       workers: data.length,
       present: 0,
@@ -403,10 +437,6 @@ export default function AttendanceReport({ data = [], month, year }) {
     return totals;
   }, [data]);
 
-  // ─────────────────────────────────────────────────────────────
-  // TAB BUTTON
-  // ─────────────────────────────────────────────────────────────
-
   const TabBtn = ({ id, label }) => {
     const active = viewMode === id;
     return (
@@ -428,13 +458,9 @@ export default function AttendanceReport({ data = [], month, year }) {
     );
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // MATRIX VIEW
-  // ─────────────────────────────────────────────────────────────
-
   const renderMatrix = () => {
     return (
-      <div style={S.tableWrap}>
+      <div style={S.tableContainer}>
         <table style={S.table}>
           <thead>
             <tr>
@@ -464,7 +490,6 @@ export default function AttendanceReport({ data = [], month, year }) {
                 attMap[attDate.getDate()] = a;
               });
 
-              // Use ONLY advanced totals for consistency
               const advancedTotals = calculateAdvancedTotals(workerData.attendance || []);
 
               return (
@@ -527,10 +552,6 @@ export default function AttendanceReport({ data = [], month, year }) {
     );
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // SUMMARY VIEW (with advanced stats)
-  // ─────────────────────────────────────────────────────────────
-
   const renderSummary = () => {
     const workersWithAdvanced = filteredData.map((workerData) => ({
       ...workerData,
@@ -538,7 +559,7 @@ export default function AttendanceReport({ data = [], month, year }) {
     }));
 
     return (
-      <div style={S.tableWrap}>
+      <div style={S.tableContainer}>
         <table style={S.summaryTable}>
           <thead>
             <tr>
@@ -548,7 +569,7 @@ export default function AttendanceReport({ data = [], month, year }) {
               <th style={S.summaryTh}>Absent</th>
               <th style={S.summaryTh}>Holiday</th>
               <th style={S.summaryTh}>OT Hours</th>
-              <th style={{ ...S.summaryTh, background: "#f3e8ff", color: "#9333ea" }}>Sunnday</th>
+              <th style={{ ...S.summaryTh, background: "#f3e8ff", color: "#9333ea" }}>Sunday</th>
               <th style={{ ...S.summaryTh, background: "#cffafe", color: "#0891b2" }}>Total Present</th>
             </tr>
           </thead>
@@ -600,9 +621,61 @@ export default function AttendanceReport({ data = [], month, year }) {
     );
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────────────────────────
+  // Skeleton Loading
+  if (isLoading) {
+    return (
+      <div style={S.root}>
+        {/* Toolbar Skeleton */}
+        <div style={S.toolbar}>
+          <div className="animate-pulse flex gap-2">
+            <div className="h-8 w-20 bg-gray-200 rounded"></div>
+            <div className="h-8 w-20 bg-gray-200 rounded"></div>
+          </div>
+          <div className="animate-pulse">
+            <div className="h-8 w-48 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+
+        {/* Legend Skeleton */}
+        <div className="animate-pulse flex flex-wrap gap-3 mb-4">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+            <div key={i} className="h-4 w-24 bg-gray-200 rounded"></div>
+          ))}
+        </div>
+
+        {/* Cards Skeleton */}
+        <div style={S.cardsBox}>
+          <div className="animate-pulse">
+            <div className="h-5 bg-gray-200 rounded w-48 mb-4"></div>
+            <div style={S.cardsGrid}>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Matrix Skeleton */}
+        <SkeletonMatrix />
+
+        {/* Footer Skeleton */}
+        <div className="animate-pulse mt-4">
+          <div className="h-3 bg-gray-200 rounded w-full"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show no data message
+  if (!data || data.length === 0) {
+    return (
+      <div style={S.root}>
+        <div style={{ textAlign: "center", padding: 50, color: "#9ca3af", background: "#f9fafb", borderRadius: 8 }}>
+          No attendance data available for {MONTH_NAMES[reportMonth - 1]} {reportYear}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={S.root}>
@@ -661,14 +734,14 @@ export default function AttendanceReport({ data = [], month, year }) {
       {/* Main */}
       {filteredData.length === 0 ? (
         <div style={{ textAlign: "center", padding: 50, color: "#9ca3af", background: "#f9fafb", borderRadius: 8 }}>
-          No attendance data available
+          No workers found matching your search
         </div>
       ) : viewMode === "matrix" ? renderMatrix() : renderSummary()}
 
       {/* Footer */}
       <div style={S.footer}>
         P = Present | Half = Half Day | A = Absent | Holi = Holiday (Mon-Sat only) | OT = Overtime Hours<br />
-        Sunnday = Present + Holiday on Sunday ONLY | Total Present = Present + Sunnday + Holiday (Mon-Sat)
+        Sunday = Present + Holiday on Sunday ONLY | Total Present = Present + Sunday + Holiday (Mon-Sat)
       </div>
     </div>
   );

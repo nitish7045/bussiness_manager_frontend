@@ -400,7 +400,8 @@ const handleDeleteSalary = async (salaryId, shouldRestore = false) => {
   
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-7xl mx-auto">
+      {/* <div className="max-w-7xl mx-auto"> */}
+      <div className="w-full">
         <SalaryHeader />
         
         {/* Tabs */}

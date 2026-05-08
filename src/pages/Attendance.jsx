@@ -547,7 +547,8 @@ export default function Attendance() {
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      {/* <div className="max-w-7xl mx-auto"> */}
+      <div className="w-full">
         {/* Header */}
         <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-800">Attendance</h1>

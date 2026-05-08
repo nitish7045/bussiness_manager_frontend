@@ -67,13 +67,14 @@ export default function ReportControls({
           )}
         </div>
         
-        <button
+        {/* <button
           onClick={onGenerate}
           disabled={loading}
           className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50"
         >
           {loading ? "Generating..." : "Generate Report"}
-        </button>
+        </button> */}
+        
       </div>
     </div>
   );
