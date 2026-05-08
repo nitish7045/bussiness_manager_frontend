@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
@@ -9,17 +8,19 @@ import AdvanceManagement from "./pages/advance";
 import SalaryManagement from "./pages/salary";
 import CompanySettings from "./pages/CompanySettings";
 import Reports from "./pages/Reports";
-// Add these imports at the top
 import BillingLogin from "./pages/billing/BillingLogin";
 import BillingDashboard from "./pages/billing/BillingDashboard";
 import BillingProtectedRoute from "./components/billing/BillingProtectedRoute";
+import { useEffect, useState } from "react";
 
 function App() {
   const [currentPage, setCurrentPage] = useState("dashboard");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  
+  // Check if user is logged in
   const isLoggedIn = localStorage.getItem("token");
 
-
+  // If not logged in, show login page
   if (!isLoggedIn) {
     return <Login />;
   }
@@ -44,18 +45,13 @@ function App() {
             <Route path="/salary" element={<SalaryManagement />} />
             <Route path="/companysetting" element={<CompanySettings />} />
             <Route path="/reports" element={<Reports />} />
-            
-
             <Route path="/" element={<Navigate to="/dashboard" />} />
-
-            
-// Add these routes inside your Router
-<Route path="/billing/login" element={<BillingLogin />} />
-<Route path="/billing/dashboard" element={
-  <BillingProtectedRoute>
-    <BillingDashboard />
-  </BillingProtectedRoute>
-} />
+            <Route path="/billing/login" element={<BillingLogin />} />
+            <Route path="/billing/dashboard" element={
+              <BillingProtectedRoute>
+                <BillingDashboard />
+              </BillingProtectedRoute>
+            } />
           </Routes>
         </main>
       </div>
