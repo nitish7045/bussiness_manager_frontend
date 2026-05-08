@@ -2,12 +2,14 @@
 import React, { useState } from "react";
 import SalaryBreakdown from "./SalaryBreakdown";
 
-export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSave, onBack, loading, month, year }) {
+export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSave, onBack, onRemoveWorker, loading, month, year }) {
   const [expandedRows, setExpandedRows] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(null);
+  const [errorMessages, setErrorMessages] = useState({});
 
   const toggleExpand = (index) => {
     setExpandedRows(prev => ({
@@ -22,6 +24,44 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
     const months = ["January", "February", "March", "April", "May", "June", 
                     "July", "August", "September", "October", "November", "December"];
     return months[month - 1];
+  };
+
+  const handleRemoveWorker = (index, workerName) => {
+    setShowRemoveConfirm({ index, workerName });
+  };
+
+  const confirmRemove = () => {
+    if (showRemoveConfirm) {
+      onRemoveWorker(showRemoveConfirm.index);
+      setShowRemoveConfirm(null);
+    }
+  };
+
+  const cancelRemove = () => {
+    setShowRemoveConfirm(null);
+  };
+
+  // Validate and update deduction with limit
+  const handleDeductionChange = (index, type, value, maxLimit) => {
+    // Clear any existing error for this worker
+    setErrorMessages(prev => ({ ...prev, [index]: undefined }));
+    
+    // Ensure value is not negative and not exceeding max limit
+    let limitedValue = Math.min(value, maxLimit);
+    
+    if (limitedValue !== value) {
+      // Show error message
+      setErrorMessages(prev => ({ 
+        ...prev, 
+        [index]: `${type === 'monthlyAdvance' ? 'Monthly advance' : 'Loan'} cannot exceed ₹${formatNumber(maxLimit)}` 
+      }));
+      // Auto-clear error after 3 seconds
+      setTimeout(() => {
+        setErrorMessages(prev => ({ ...prev, [index]: undefined }));
+      }, 3000);
+    }
+    
+    onUpdateDeduction(index, type, limitedValue);
   };
 
   // Filter and sort data
@@ -135,6 +175,35 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
 
   return (
     <div className="space-y-4">
+      {/* Remove Confirmation Modal */}
+      {showRemoveConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Confirm Removal</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to remove <strong>{showRemoveConfirm.workerName}</strong> from salary processing for {getMonthName(month)} {year}?
+            </p>
+            <p className="text-xs text-red-500 mb-4">
+              This worker will not be included when saving salaries. You can add them back next month.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelRemove}
+                className="px-4 py-2 text-sm bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRemove}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+              >
+                Remove Worker
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="px-4 py-2 bg-blue-50 border-b border-blue-200 rounded-t-lg">
           <div className="flex justify-between items-center mb-3">
@@ -254,7 +323,7 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
         
         {filteredData.length > 0 && (
           <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="text-center">
                 <div className="text-xs text-gray-500">Showing</div>
                 <div className="text-sm font-bold text-gray-800">{filteredData.length} / {salaryData.filter(d => !d.error).length}</div>
@@ -270,6 +339,10 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
               <div className="text-center">
                 <div className="text-xs text-gray-500">With Carry Forward</div>
                 <div className="text-sm font-bold text-orange-600">{stats.withCarryForward}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs text-gray-500">Remove Worker</div>
+                <div className="text-sm font-bold text-red-600">Click ❌</div>
               </div>
             </div>
           </div>
@@ -296,15 +369,17 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 cursor-pointer hover:bg-gray-100" onClick={() => handleSort("netSalary")}>
                   Net Salary {getSortIcon("netSalary")}
                 </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Notes</th></tr>
-               </thead>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Notes</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 w-12">Remove</th>
+              </tr>
+            </thead>
             <tbody>
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="text-center py-8 text-gray-500 text-sm">
+                  <td colSpan="9" className="text-center py-8 text-gray-500 text-sm">
                     No workers match the current filters
-                   </td>
-                 </tr>
+                  </td>
+                </tr>
               ) : (
                 filteredData.map((data, idx) => {
                   const originalIndex = salaryData.findIndex(d => d.workerId === data.workerId);
@@ -317,6 +392,7 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
                   const totalDeductions = monthlyDeduction + loanDeduction;
                   const netSalary = data.calculatedNetSalary !== undefined ? data.calculatedNetSalary : earnings - totalDeductions;
                   const hasCarryForward = data.calculatedRemaining && (data.calculatedRemaining.monthlyAdvance > 0 || data.calculatedRemaining.loan > 0);
+                  const maxDeduction = earnings;
                   
                   return (
                     <React.Fragment key={originalIndex}>
@@ -347,6 +423,7 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
                         </td>
                         <td className="px-3 py-2">
                           <div className="text-sm font-semibold text-green-600">₹{formatNumber(earnings)}</div>
+                          <div className="text-[10px] text-gray-400">Max: ₹{formatNumber(maxDeduction)}</div>
                         </td>
                         <td className="px-3 py-2">
                           <div className="text-xs text-gray-500 mb-1">Due: ₹{formatNumber(monthlyDue)}</div>
@@ -357,7 +434,7 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
                               let value = e.target.value.replace(/[^\d]/g, '');
                               value = value.replace(/^0+/, '');
                               const numValue = value === '' ? 0 : parseInt(value, 10);
-                              onUpdateDeduction(originalIndex, 'monthlyAdvance', numValue);
+                              handleDeductionChange(originalIndex, 'monthlyAdvance', numValue, maxDeduction);
                             }}
                             onFocus={(e) => {
                               if (e.target.value === "0") {
@@ -365,10 +442,12 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
                               }
                             }}
                             placeholder="0"
-                            className="w-24 border border-gray-300 rounded p-1 text-xs focus:ring-1 focus:ring-blue-500"
+                            className={`w-24 border rounded p-1 text-xs focus:ring-1 focus:ring-blue-500 ${
+                              monthlyDeduction > maxDeduction ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                            }`}
                           />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 relative">
                           <div className="text-xs text-gray-500 mb-1">Due: ₹{formatNumber(loanDue)}</div>
                           <input
                             type="text"
@@ -377,7 +456,7 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
                               let value = e.target.value.replace(/[^\d]/g, '');
                               value = value.replace(/^0+/, '');
                               const numValue = value === '' ? 0 : parseInt(value, 10);
-                              onUpdateDeduction(originalIndex, 'loan', numValue);
+                              handleDeductionChange(originalIndex, 'loan', numValue, maxDeduction - monthlyDeduction);
                             }}
                             onFocus={(e) => {
                               if (e.target.value === "0") {
@@ -385,11 +464,23 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
                               }
                             }}
                             placeholder="0"
-                            className="w-24 border border-gray-300 rounded p-1 text-xs focus:ring-1 focus:ring-blue-500"
+                            className={`w-24 border rounded p-1 text-xs focus:ring-1 focus:ring-blue-500 ${
+                              loanDeduction > (maxDeduction - monthlyDeduction) ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                            }`}
                           />
+                          {errorMessages[originalIndex] && (
+                            <div className="absolute z-50 mt-1 px-2 py-1 bg-red-600 text-white text-[10px] rounded shadow-lg whitespace-nowrap">
+                              ⚠️ {errorMessages[originalIndex]}
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2">
-                          <div className="text-sm font-bold text-blue-600">₹{formatNumber(netSalary)}</div>
+                          <div className={`text-sm font-bold ${netSalary < 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                            ₹{formatNumber(netSalary < 0 ? 0 : netSalary)}
+                          </div>
+                          {netSalary < 0 && (
+                            <div className="text-[10px] text-red-500">Deductions exceed earnings!</div>
+                          )}
                           {hasCarryForward && (
                             <div className="text-[10px] text-orange-600">
                               Carry: {data.calculatedRemaining.monthlyAdvance > 0 && `A:₹${formatNumber(data.calculatedRemaining.monthlyAdvance)}`}
@@ -410,18 +501,27 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
                             className="w-32 border border-gray-300 rounded p-1 text-xs focus:ring-1 focus:ring-blue-500"
                           />
                         </td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            onClick={() => handleRemoveWorker(originalIndex, data.worker.name)}
+                            className="text-red-500 hover:text-red-700 transition-colors"
+                            title="Remove this worker from salary processing"
+                          >
+                            ❌
+                          </button>
+                        </td>
                       </tr>
                       
                       {/* Expandable Detailed Breakdown Row */}
                       {isExpanded && (
                         <tr className="bg-gray-50 border-t">
-                          <td colSpan="8" className="px-4 py-3">
+                          <td colSpan="9" className="px-4 py-3">
                             <SalaryBreakdown
                               data={data}
-                              monthlyDeduction={monthlyDeduction}
-                              loanDeduction={loanDeduction}
-                              totalDeductions={totalDeductions}
-                              netSalary={netSalary}
+                              monthlyDeduction={Math.min(monthlyDeduction, maxDeduction)}
+                              loanDeduction={Math.min(loanDeduction, maxDeduction - monthlyDeduction)}
+                              totalDeductions={Math.min(totalDeductions, maxDeduction)}
+                              netSalary={netSalary < 0 ? 0 : netSalary}
                               hasCarryForward={hasCarryForward}
                             />
                           </td>
@@ -432,7 +532,7 @@ export default function SalaryReviewTable({ salaryData, onUpdateDeduction, onSav
                 })
               )}
             </tbody>
-           </table>
+          </table>
         </div>
       </div>
     </div>

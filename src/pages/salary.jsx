@@ -364,6 +364,12 @@ const handleDeleteSalary = async (salaryId, shouldRestore = false) => {
     }, 100);
   };
 
+  const handleRemoveWorker = (index) => {
+  const updatedData = [...salaryData];
+  updatedData.splice(index, 1);
+  setSalaryData(updatedData);
+};
+
   // ==================== Worker Selection Handlers ====================
   
   const toggleSelectAll = () => {
@@ -473,6 +479,7 @@ const handleDeleteSalary = async (salaryId, shouldRestore = false) => {
             salaryData={salaryData}
             onUpdateDeduction={updateDeduction}
             onSave={saveAllSalaries}
+             onRemoveWorker={handleRemoveWorker}  // Add this line
             onBack={() => {
               setShowReview(false);
               setSalaryData([]);
