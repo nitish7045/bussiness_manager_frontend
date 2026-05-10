@@ -97,21 +97,39 @@ export default function SignupForm({
   }, [form.password]);
 
   const handleSendOTP = async () => {
+    // Validate email
     if (!form.email) {
       setMessage({ type: "error", text: "Please enter email first" });
       return;
     }
-
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       setMessage({ type: "error", text: "Please enter a valid email address" });
       return;
     }
 
+    // Validate WhatsApp number
+    if (!form.whatsappNumber) {
+      setMessage({ type: "error", text: "Please enter WhatsApp number" });
+      return;
+    }
+    
+    // Basic validation (should have at least 10 digits)
+    const cleanNumber = form.whatsappNumber.replace(/\D/g, "");
+    if (cleanNumber.length < 10) {
+      setMessage({ type: "error", text: "Please enter a valid WhatsApp number (minimum 10 digits)" });
+      return;
+    }
+
     try {
       setLoading(true);
-      await API.post("/auth/send-otp", { email: form.email });
+      const response = await API.post("/auth/send-otp", { 
+        email: form.email,
+        whatsappNumber: form.whatsappNumber
+      });
+      
       setOtpSent(true);
-      setMessage({ type: "success", text: "OTP sent to your email" });
+      setMessage({ type: "success", text: "OTP sent to your email and WhatsApp!" });
+      
     } catch (err) {
       setMessage({ type: "error", text: err.response?.data?.msg || "Failed to send OTP" });
     } finally {
@@ -127,9 +145,13 @@ export default function SignupForm({
 
     try {
       setLoading(true);
-      await API.post("/auth/verify-otp", { email: form.email, otp });
+      await API.post("/auth/verify-otp", { 
+        email: form.email, 
+        whatsappNumber: form.whatsappNumber,
+        otp 
+      });
       setOtpVerified(true);
-      setMessage({ type: "success", text: "OTP verified successfully" });
+      setMessage({ type: "success", text: "OTP verified successfully!" });
     } catch (err) {
       setMessage({ type: "error", text: err.response?.data?.msg || "Invalid OTP" });
     } finally {
@@ -140,7 +162,7 @@ export default function SignupForm({
   const handleRegister = async (e) => {
     e.preventDefault();
 
-    if (!form.name || !form.email || !form.password || !form.confirmPassword) {
+    if (!form.name || !form.email || !form.whatsappNumber || !form.password || !form.confirmPassword) {
       setMessage({ type: "error", text: "Please fill in all fields" });
       return;
     }
@@ -172,13 +194,20 @@ export default function SignupForm({
         name: form.name,
         email: form.email,
         password: form.password,
+        whatsappNumber: form.whatsappNumber,
       });
 
       setMessage({ type: "success", text: "Registration successful! Please login." });
 
       setTimeout(() => {
         onSwitchTab("login");
-        setForm({ email: "", password: "", name: "", confirmPassword: "" });
+        setForm({ 
+          email: "", 
+          password: "", 
+          name: "", 
+          confirmPassword: "",
+          whatsappNumber: "" 
+        });
         setOtp("");
         setOtpSent(false);
         setOtpVerified(false);
@@ -219,7 +248,7 @@ export default function SignupForm({
 
   // Check if passwords match
   const doPasswordsMatch = form.confirmPassword && form.password === form.confirmPassword;
-  const isConfirmPasswordDirty = form.confirmPassword.length > 0;
+  const isConfirmPasswordDirty = form.confirmPassword && form.confirmPassword.length > 0;
 
   return (
     <form onSubmit={handleRegister} className="space-y-4">
@@ -244,10 +273,10 @@ export default function SignupForm({
         </div>
       </div>
 
-      {/* Email with OTP */}
+      {/* Email */}
       <div>
         <label className="block text-white/80 text-sm font-medium mb-2">Email Address</label>
-        <div className="relative group mb-3">
+        <div className="relative group">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <svg className="h-5 w-5 text-white/50 group-hover:text-white/70 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
@@ -263,8 +292,39 @@ export default function SignupForm({
             disabled={loading || otpVerified}
           />
         </div>
+      </div>
 
-        {/* OTP Section */}
+      {/* WhatsApp Number */}
+      <div>
+        <label className="block text-white/80 text-sm font-medium mb-2">
+          WhatsApp Number
+        </label>
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-white/50 group-hover:text-white/70 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <input
+            type="tel"
+            name="whatsappNumber"
+            value={form.whatsappNumber || ""}
+            onChange={(e) => setForm({ ...form, whatsappNumber: e.target.value })}
+            placeholder="9876543210"
+            className="w-full pl-10 pr-3 py-2.5 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+            disabled={loading || otpVerified}
+          />
+        </div>
+        <p className="text-xs text-white/40 mt-1">
+          Enter your 10-digit mobile number (Indian number only)
+        </p>
+      </div>
+
+      {/* OTP Section */}
+      <div>
+        <label className="block text-white/80 text-sm font-medium mb-2">Verification</label>
+        
+        {/* OTP Input Section */}
         <div className="bg-white/5 rounded-lg p-3 border border-white/10">
           <div className="flex items-center gap-2">
             <div className="flex-1">
@@ -272,7 +332,7 @@ export default function SignupForm({
                 type="text"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
-                placeholder="Enter verification code"
+                placeholder="Enter 6-digit verification code"
                 className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all duration-200"
                 disabled={!otpSent || otpVerified}
               />
@@ -282,8 +342,8 @@ export default function SignupForm({
               <button
                 type="button"
                 onClick={handleSendOTP}
-                disabled={loading || !form.email}
-                className="relative px-5 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 font-medium"
+                disabled={loading || !form.email || !form.whatsappNumber}
+                className="relative px-5 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 font-medium whitespace-nowrap"
               >
                 {loading ? (
                   <div className="flex items-center">
@@ -299,7 +359,7 @@ export default function SignupForm({
                 type="button"
                 onClick={handleVerifyOTP}
                 disabled={loading || !otp}
-                className="relative px-5 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 font-medium"
+                className="relative px-5 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 font-medium whitespace-nowrap"
               >
                 {loading ? (
                   <div className="flex items-center">
@@ -311,7 +371,7 @@ export default function SignupForm({
                 )}
               </button>
             ) : (
-              <div className="px-5 py-2 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-lg font-medium flex items-center">
+              <div className="px-5 py-2 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-lg font-medium flex items-center whitespace-nowrap">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -322,13 +382,13 @@ export default function SignupForm({
           
           {otpSent && !otpVerified && (
             <p className="text-xs text-white/50 mt-2">
-              Check your email for verification code
+              Verification code sent to your email and WhatsApp
             </p>
           )}
           
           {otpVerified && (
             <p className="text-xs text-green-400 mt-2">
-              ✓ Email verified successfully
+              ✓ Verified successfully! You can now create your account.
             </p>
           )}
         </div>

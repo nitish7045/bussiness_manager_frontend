@@ -11,15 +11,13 @@ export default function CompanySettings() {
     address: "",
     gst: "",
     logo: null,
-
-    // WhatsApp Settings
-    whatsappNumber: "",
-    whatsappApiKey: ""
+    whatsappNumber: ""
   });
 
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState({ type: "", text: "" });
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     fetchCompanyDetails();
@@ -32,6 +30,16 @@ export default function CompanySettings() {
     } catch (err) {
       console.error("Error fetching company details:", err);
     }
+  };
+
+  const showMessage = (type, text) => {
+    setMessage({ type, text });
+    setShowToast(true);
+    
+    // Auto hide after 3 seconds
+    setTimeout(() => {
+      setShowToast(false);
+    }, 3000);
   };
 
   const handleLogoUpload = async (e) => {
@@ -73,26 +81,17 @@ export default function CompanySettings() {
         logo: res.data.logo
       });
 
-      setMessage({
-        type: "success",
-        text: "Logo uploaded successfully!"
-      });
-
-      setTimeout(() => setMessage(""), 3000);
+      showMessage("success", "Logo uploaded successfully!");
     } catch (err) {
       console.error("Error uploading logo:", err);
-      alert("Error uploading logo");
+      showMessage("error", "Error uploading logo");
     } finally {
       setUploadingLogo(false);
     }
   };
 
   const handleDeleteLogo = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete the company logo?"
-      )
-    )
+    if (!window.confirm("Are you sure you want to delete the company logo?"))
       return;
 
     try {
@@ -103,15 +102,10 @@ export default function CompanySettings() {
         logo: null
       });
 
-      setMessage({
-        type: "success",
-        text: "Logo deleted successfully!"
-      });
-
-      setTimeout(() => setMessage(""), 3000);
+      showMessage("success", "Logo deleted successfully!");
     } catch (err) {
       console.error("Error deleting logo:", err);
-      alert("Error deleting logo");
+      showMessage("error", "Error deleting logo");
     }
   };
 
@@ -125,54 +119,44 @@ export default function CompanySettings() {
         companyDetails: detailsToSave
       });
 
-      setMessage({
-        type: "success",
-        text: "Company details updated successfully!"
-      });
-
-      setTimeout(() => setMessage(""), 3000);
+      showMessage("success", "✅ Company details updated successfully!");
+      
+      // Optional: Change button text temporarily
+      setTimeout(() => {
+        setLoading(false);
+      }, 500);
+      
     } catch (err) {
-      setMessage({
-        type: "error",
-        text: "Error updating company details"
-      });
-    } finally {
+      showMessage("error", "❌ Error updating company details");
       setLoading(false);
     }
   };
 
-  const handleAuthenticateWhatsApp = () => {
-    window.open(
-      "https://api.whatsapp.com/send?phone=34684783347&text=I%20allow%20callmebot%20to%20send%20me%20messages",
-      "_blank"
-    );
-  };
-
-  const handleTestMessage = async () => {
-    try {
-      if (
-        !companyDetails.whatsappNumber ||
-        !companyDetails.whatsappApiKey
-      ) {
-        alert("Enter WhatsApp number and API key first");
-        return;
-      }
-
-      await fetch(
-        `https://api.callmebot.com/whatsapp.php?phone=${companyDetails.whatsappNumber}&text=${encodeURIComponent(
-          "WhatsApp notifications connected successfully ✅"
-        )}&apikey=${companyDetails.whatsappApiKey}`
-      );
-
-      alert("Test message sent successfully");
-    } catch (err) {
-      console.error(err);
-      alert("Error sending test message");
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 relative">
+      
+      {/* Toast Notification - Appears at bottom right */}
+      {showToast && (
+        <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
+          <div className={`rounded-xl shadow-2xl px-6 py-4 flex items-center gap-3 ${
+            message.type === "success" 
+              ? "bg-green-500 text-white" 
+              : "bg-red-500 text-white"
+          }`}>
+            {message.type === "success" ? (
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            )}
+            <span className="font-medium">{message.text}</span>
+          </div>
+        </div>
+      )}
+
       <div className="w-full">
 
         {/* Header */}
@@ -214,19 +198,6 @@ export default function CompanySettings() {
 
           <div className="p-6 md:p-8">
 
-            {/* Message */}
-            {message && (
-              <div
-                className={`mb-6 p-4 rounded-xl ${
-                  message.type === "success"
-                    ? "bg-green-50 border border-green-200 text-green-700"
-                    : "bg-red-50 border border-red-200 text-red-700"
-                }`}
-              >
-                {message.text}
-              </div>
-            )}
-
             {/* Logo */}
             <div className="mb-8 pb-6 border-b border-gray-200">
               <label className="block text-sm font-semibold text-gray-700 mb-3">
@@ -248,7 +219,7 @@ export default function CompanySettings() {
 
                       <button
                         onClick={handleDeleteLogo}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs"
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs hover:bg-red-600"
                       >
                         ✕
                       </button>
@@ -296,15 +267,15 @@ export default function CompanySettings() {
                       name: e.target.value
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg p-3 text-sm"
+                  className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter company name"
                 />
               </div>
 
-              {/* Phone */}
+              {/* Phone (for billing) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
+                  Phone Number (for billing)
                 </label>
 
                 <input
@@ -316,8 +287,8 @@ export default function CompanySettings() {
                       phone: e.target.value
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg p-3 text-sm"
-                  placeholder="Enter phone number"
+                  className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter phone number for bills"
                 />
               </div>
 
@@ -336,7 +307,7 @@ export default function CompanySettings() {
                       email: e.target.value
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg p-3 text-sm"
+                  className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter email"
                 />
               </div>
@@ -356,7 +327,7 @@ export default function CompanySettings() {
                       gst: e.target.value
                     })
                   }
-                  className="w-full border border-gray-300 rounded-lg p-3 text-sm"
+                  className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter GST"
                 />
               </div>
@@ -376,7 +347,7 @@ export default function CompanySettings() {
                     })
                   }
                   rows="3"
-                  className="w-full border border-gray-300 rounded-lg p-3 text-sm"
+                  className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter business address"
                 />
               </div>
@@ -388,7 +359,7 @@ export default function CompanySettings() {
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6">
 
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-2xl">
                     📲
                   </div>
 
@@ -398,34 +369,32 @@ export default function CompanySettings() {
                     </h3>
 
                     <p className="text-sm text-gray-500">
-                      Connect CallMeBot for login alerts and OTP messages
+                      Receive login alerts, OTPs, and password reset notifications
                     </p>
                   </div>
                 </div>
 
-                {/* Instructions */}
-                <div className="bg-white border border-green-100 rounded-xl p-4 mb-6">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">
-                    Setup Instructions
+                {/* Info Box */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                  <p className="text-sm text-blue-800">
+                    📌 Your WhatsApp number will be used to receive:
                   </p>
-
-                  <ol className="text-xs text-gray-600 space-y-2 list-decimal list-inside">
-                    <li>Click Authenticate WhatsApp</li>
-                    <li>Send message on WhatsApp</li>
-                    <li>Receive API Key from CallMeBot</li>
-                    <li>Paste API Key below</li>
-                    <li>Save settings</li>
-                  </ol>
+                  <ul className="text-xs text-blue-700 mt-2 space-y-1 list-disc list-inside">
+                    <li>Login success/failure alerts</li>
+                    <li>Password reset OTPs</li>
+                    <li>Security notifications</li>
+                    <li>Account activity updates</li>
+                  </ul>
                 </div>
 
-                {/* Number */}
+                {/* WhatsApp Number Input */}
                 <div className="mb-5">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    WhatsApp Number
+                    WhatsApp Number for Notifications
                   </label>
 
                   <input
-                    type="text"
+                    type="tel"
                     value={companyDetails.whatsappNumber || ""}
                     onChange={(e) =>
                       setCompanyDetails({
@@ -433,67 +402,62 @@ export default function CompanySettings() {
                         whatsappNumber: e.target.value
                       })
                     }
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="919876543210"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter with country code (e.g., 91 for India)
+                  </p>
                 </div>
 
-                {/* API KEY */}
-                <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    CallMeBot API Key
-                  </label>
-
-                  <input
-                    type="text"
-                    value={companyDetails.whatsappApiKey || ""}
-                    onChange={(e) =>
-                      setCompanyDetails({
-                        ...companyDetails,
-                        whatsappApiKey: e.target.value
-                      })
-                    }
-                    className="w-full border border-gray-300 rounded-lg p-3 text-sm"
-                    placeholder="Paste API Key"
-                  />
-                </div>
-
-                {/* Buttons */}
-                <div className="flex flex-col sm:flex-row gap-3">
-
-                  <button
-                    type="button"
-                    onClick={handleAuthenticateWhatsApp}
-                    className="bg-green-600 text-white px-5 py-3 rounded-xl text-sm font-medium hover:bg-green-700 transition-all"
-                  >
-                    🔐 Authenticate WhatsApp
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleTestMessage}
-                    className="bg-white border border-green-300 text-green-700 px-5 py-3 rounded-xl text-sm font-medium hover:bg-green-50 transition-all"
-                  >
-                    📩 Send Test Message
-                  </button>
-
-                </div>
               </div>
             </div>
 
-            {/* Save */}
+            {/* Save Button with Loading State */}
             <div className="mt-8 pt-6 border-t border-gray-200">
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all"
+                className={`w-full py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+                  loading 
+                    ? "bg-gray-400 text-white cursor-not-allowed" 
+                    : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700"
+                }`}
               >
-                {loading ? "Saving..." : "Save Company Details"}
+                {loading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving Changes...
+                  </>
+                ) : (
+                  "💾 Save Company Details"
+                )}
               </button>
             </div>
+
           </div>
         </div>
       </div>
+
+      {/* Add this CSS to your global CSS file or use Tailwind */}
+      <style jsx>{`
+        @keyframes slideUp {
+          from {
+            transform: translateY(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-up {
+          animation: slideUp 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

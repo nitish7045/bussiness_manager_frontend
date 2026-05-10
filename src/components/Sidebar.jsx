@@ -42,6 +42,7 @@ export default function Sidebar({ setPage, onCollapse, isCollapsed: externalColl
     { id: "salary", label: "Salary", icon: "💵", path: "/salary" },
     { id: "reports", label: "Reports", icon: "📈", path: "/reports" },
     { id: "companysetting", label: "Company Setting", icon: "🧑‍💻", path: "/companysetting" },
+    { id: "broadcast", label: "Broadcast Message", icon: "💬", path: "/broadcast" },
     { id: "billing", label: "Billing App", icon: "🧾", path: "/billing/dashboard", isBilling: true },
   ];
 

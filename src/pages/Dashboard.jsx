@@ -19,6 +19,10 @@ export default function Dashboard() {
   const [showSecurityModal, setShowSecurityModal] = useState(false);
   const [sessionTimeRemaining, setSessionTimeRemaining] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
+ const [reminderSent, setReminderSent] = useState({
+  first: false,
+  second: false
+});
 
   // Get user from localStorage
   const user = JSON.parse(localStorage.getItem("user"));
@@ -41,7 +45,6 @@ export default function Dashboard() {
     const remaining = expiresAt - now;
     
     if (remaining <= 0) {
-      // Session expired, logout
       localStorage.removeItem("user");
       localStorage.removeItem("token");
       localStorage.removeItem("loginTime");
@@ -54,6 +57,98 @@ export default function Dashboard() {
     const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
     return { hours, minutes, seconds, totalRemaining: remaining };
   };
+
+  // Auto reminder for unmarked attendance
+  // Auto reminder for unmarked attendance
+const checkAndSendReminders = async (activeWorkers, unmarkedWorkers) => {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinutes = now.getMinutes();
+  const currentTimeStr = `${currentHour}:${currentMinutes}`;
+  
+  // First reminder: 4:00 PM - 4:15 PM (give 15 minute window)
+  const firstReminderStart = "16:00";
+  const firstReminderEnd = "16:15";
+  
+  // Second reminder: 9:30 PM - 9:45 PM (give 15 minute window)
+  const secondReminderStart = "21:30";
+  const secondReminderEnd = "21:45";
+  
+  // Check if it's first reminder time (4:00 PM)
+  if (currentTimeStr >= firstReminderStart && currentTimeStr <= firstReminderEnd && !reminderSent.first) {
+    if (unmarkedWorkers > 0) {
+      await sendAttendanceReminder(unmarkedWorkers, activeWorkers.length, "first");
+      setReminderSent(prev => ({ ...prev, first: true }));
+    }
+  }
+  
+  // Check if it's second reminder time (9:30 PM)
+  if (currentTimeStr >= secondReminderStart && currentTimeStr <= secondReminderEnd && !reminderSent.second) {
+    if (unmarkedWorkers > 0) {
+      await sendAttendanceReminder(unmarkedWorkers, activeWorkers.length, "second");
+      setReminderSent(prev => ({ ...prev, second: true }));
+    }
+  }
+  
+  // Reset reminders after 10:00 PM (next day)
+  if (currentHour >= 22 && currentMinutes >= 0) {
+    setReminderSent({ first: false, second: false });
+  }
+};
+
+  // Send WhatsApp reminder
+const sendAttendanceReminder = async (unmarkedCount, totalActive, timeOfDay) => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    
+    const reminderMessage = timeOfDay === "first" 
+      ? `🌤️ *Evening Attendance Reminder (4:00 PM)*
+      
+⚠️ *${unmarkedCount}* workers haven't marked attendance yet today.
+
+📊 *Stats:*
+• Total Active Workers: ${totalActive}
+• Pending Markings: ${unmarkedCount}
+• Completion Rate: ${Math.round(((totalActive - unmarkedCount) / totalActive) * 100)}%
+
+⏰ Please remind workers to mark their attendance before end of day.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+*Use Attendance Management section*
+✅ Mark attendance now to avoid late entries`
+        
+      : `🌙 *Night Attendance Reminder (9:30 PM)*
+      
+⚠️ *CRITICAL: ${unmarkedCount}* workers still haven't marked attendance today!
+
+📊 *Stats:*
+• Total Active Workers: ${totalActive}
+• Pending Markings: ${unmarkedCount}
+• Completion Rate: ${Math.round(((totalActive - unmarkedCount) / totalActive) * 100)}%
+
+⏰ LAST CHANCE to mark attendance for today!
+
+━━━━━━━━━━━━━━━━━━━━━━━
+*⚠️ Important:*
+Unmarked attendance will be marked as ABSENT
+This will affect salary and payroll
+
+*Please mark attendance immediately!*`;
+
+    await API.post("/attendance/send-reminder", {
+      reminderMessage: reminderMessage,
+      unmarkedCount: unmarkedCount,
+      reminderTime: timeOfDay === "first" ? "4:00 PM" : "9:30 PM"
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    console.log(`Attendance reminder sent (${timeOfDay === "first" ? "4:00 PM" : "9:30 PM"})`);
+  } catch (error) {
+    console.error("Error sending attendance reminder:", error);
+  }
+};
 
   // Fetch login history - Only when modal is opened
   const fetchLoginHistory = async () => {
@@ -93,7 +188,6 @@ export default function Dashboard() {
       setLoginTime(now);
     }
     
-    // Update time every second for better session display
     const timer = setInterval(() => {
       setCurrentTime(new Date());
       const stored = localStorage.getItem("loginTime");
@@ -108,7 +202,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-    // Don't fetch login history automatically
+    
+    // Check for reminders every 5 minutes
+    const reminderInterval = setInterval(() => {
+      const storedStats = localStorage.getItem("dashboardStats");
+      if (storedStats) {
+        const parsed = JSON.parse(storedStats);
+        checkAndSendReminders(parsed.active, parsed.unmarked);
+      }
+    }, 5 * 60 * 1000); // Check every 5 minutes
+    
+    return () => clearInterval(reminderInterval);
   }, []);
 
   const fetchDashboardData = async () => {
@@ -173,8 +277,7 @@ export default function Dashboard() {
       const unmarkedCount = activeWorkers.filter(w => !attendanceMap[w._id]).length;
       const finalAbsentCount = absentCount + unmarkedCount;
 
-      setAttendanceData(attendanceMap);
-      setStats({
+      const newStats = {
         present: presentCount,
         absent: finalAbsentCount,
         halfday: halfdayCount,
@@ -184,7 +287,20 @@ export default function Dashboard() {
         inactive: inactiveCount,
         unmarked: unmarkedCount,
         marked: Object.keys(attendanceMap).length
-      });
+      };
+
+      setAttendanceData(attendanceMap);
+      setStats(newStats);
+      
+      // Store stats for reminder checks
+      localStorage.setItem("dashboardStats", JSON.stringify({
+        active: activeCount,
+        unmarked: unmarkedCount,
+        total: allWorkers.length
+      }));
+      
+      // Check and send reminders
+      await checkAndSendReminders(activeCount, unmarkedCount);
       
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
@@ -269,6 +385,7 @@ export default function Dashboard() {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
       localStorage.removeItem("loginTime");
+      localStorage.removeItem("dashboardStats");
       window.location.href = '/login';
     }
   };
@@ -292,6 +409,7 @@ export default function Dashboard() {
   const inactivePercentage = stats.total > 0 ? Math.round((stats.inactive / stats.total) * 100) : 0;
   const presentPercentage = stats.active > 0 ? Math.round((stats.present / stats.active) * 100) : 0;
   const absentPercentage = stats.active > 0 ? Math.round((stats.absent / stats.active) * 100) : 0;
+  const completionPercentage = stats.active > 0 ? Math.round((stats.marked / stats.active) * 100) : 0;
 
   if (loading) {
     return (
@@ -327,6 +445,11 @@ export default function Dashboard() {
                   ✓ {stats.marked} workers have marked attendance today
                 </p>
               )}
+              {stats.unmarked > 0 && (
+                <p className="text-xs text-orange-600 mt-1">
+                  ⚠️ {stats.unmarked} workers haven't marked attendance yet
+                </p>
+              )}
             </div>
             <div className="flex gap-3">
               <button
@@ -347,6 +470,29 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Reminder Banner */}
+      {stats.unmarked > 0 && (
+        <div className="container mx-auto px-6 mb-4">
+          <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="text-orange-600 mr-2">⚠️</span>
+                <p className="text-orange-800 text-sm">
+                  <span className="font-semibold">{stats.unmarked}</span> workers haven't marked attendance today 
+                  (Completion: {completionPercentage}%)
+                </p>
+              </div>
+              <button
+                onClick={fetchDashboardData}
+                className="text-xs bg-orange-500 text-white px-3 py-1 rounded-lg hover:bg-orange-600"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Session Warning Banner */}
       {sessionTimeRemaining && sessionTimeRemaining.hours < 1 && sessionTimeRemaining.totalRemaining > 0 && (
@@ -445,13 +591,13 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl shadow-md p-4 border-l-4 border-gray-400 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-xs">Inactive Workers</p>
-                <p className="text-2xl font-bold text-gray-600">{stats.inactive}</p>
+                <p className="text-gray-500 text-xs">Completion</p>
+                <p className="text-2xl font-bold text-gray-600">{completionPercentage}%</p>
               </div>
-              <div className="text-2xl">⚫</div>
+              <div className="text-2xl">📊</div>
             </div>
             <div className="text-xs text-gray-400 mt-1">
-              {inactivePercentage}% of total
+              {stats.marked}/{stats.active} marked
             </div>
           </div>
         </div>

@@ -13,6 +13,7 @@ import Reports from "./pages/Reports";
 import BillingLogin from "./pages/billing/BillingLogin";
 import BillingDashboard from "./pages/billing/BillingDashboard";
 import BillingProtectedRoute from "./components/billing/BillingProtectedRoute";
+import BroadcastMessage from "./pages/BroadcastMessage";
 
 function App() {
   const [currentPage, setCurrentPage] = useState("dashboard");
@@ -91,6 +92,7 @@ function App() {
             <Route path="/salary" element={<SalaryManagement />} />
             <Route path="/companysetting" element={<CompanySettings />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/broadcast" element={<BroadcastMessage />} />
             <Route path="/" element={<Navigate to="/dashboard" />} />
             <Route path="/billing/dashboard" element={
               <BillingProtectedRoute>
